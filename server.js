@@ -6,6 +6,8 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
+const cors = require('cors');
+
 
 
 const app = express();
