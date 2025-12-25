@@ -71,6 +71,108 @@ app.post('/chat', async (req, res) => {
 app.post('/ai/profile-improve', async (req, res) => {
   try {
     const { profile_text, tone = 'warm_grounded' } = req.body || {};
+    // Astrology Match (birthdate-only MVP)
+app.post('/match/astrology', (req, res) => {
+  try {
+    const { dob1, dob2 } = req.body || {};
+    if (!dob1 || !dob2) {
+      return res.status(400).json({ error: 'dob1 and dob2 are required (YYYY-MM-DD)' });
+    }
+
+    const sign1 = getZodiacSign(dob1);
+    const sign2 = getZodiacSign(dob2);
+
+    if (!sign1 || !sign2) {
+      return res.status(400).json({ error: 'Invalid dob format. Use YYYY-MM-DD' });
+    }
+
+    // Simple compatibility: element-based (good enough for MVP)
+    const result = compatibilityByElement(sign1, sign2);
+
+    return res.json({
+      dob1,
+      dob2,
+      sign1,
+      sign2,
+      ...result
+    });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// --- helpers (paste below the route, anywhere in server.js) ---
+
+function getZodiacSign(dobStr) {
+  // dobStr: YYYY-MM-DD
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dobStr);
+  if (!m) return null;
+  const month = parseInt(m[2], 10);
+  const day = parseInt(m[3], 10);
+
+  // Western Tropical Sun signs
+  if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return 'Aries';
+  if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return 'Taurus';
+  if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return 'Gemini';
+  if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return 'Cancer';
+  if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return 'Leo';
+  if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return 'Virgo';
+  if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return 'Libra';
+  if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return 'Scorpio';
+  if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return 'Sagittarius';
+  if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return 'Capricorn';
+  if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return 'Aquarius';
+  if ((month === 2 && day >= 19) || (month === 3 && day <= 20)) return 'Pisces';
+  return null;
+}
+
+function elementOf(sign) {
+  const fire = ['Aries','Leo','Sagittarius'];
+  const earth = ['Taurus','Virgo','Capricorn'];
+  const air = ['Gemini','Libra','Aquarius'];
+  const water = ['Cancer','Scorpio','Pisces'];
+  if (fire.includes(sign)) return 'Fire';
+  if (earth.includes(sign)) return 'Earth';
+  if (air.includes(sign)) return 'Air';
+  if (water.includes(sign)) return 'Water';
+  return 'Unknown';
+}
+
+function compatibilityByElement(sign1, sign2) {
+  const e1 = elementOf(sign1);
+  const e2 = elementOf(sign2);
+
+  // Very simple MVP rules:
+  // Fire+Air = strong, Earth+Water = strong, same element = good,
+  // Fire+Water and Air+Earth = more friction, everything else = medium
+  let score = 70;
+  let label = 'Good';
+  let reason = 'Decent natural compatibility.';
+
+  const pair = `${e1}-${e2}`;
+  const pair2 = `${e2}-${e1}`;
+
+  if (e1 === e2) {
+    score = 78; label = 'Very Good';
+    reason = `Same element (${e1}) tends to “get” each other easily.`;
+  } else if (pair === 'Fire-Air' || pair2 === 'Fire-Air') {
+    score = 85; label = 'Excellent';
+    reason = 'Fire inspires, Air fuels—high chemistry and momentum.';
+  } else if (pair === 'Earth-Water' || pair2 === 'Earth-Water') {
+    score = 85; label = 'Excellent';
+    reason = 'Earth stabilises, Water softens—strong long-term harmony.';
+  } else if (pair === 'Fire-Water' || pair2 === 'Fire-Water') {
+    score = 58; label = 'Challenging';
+    reason = 'Big feelings + big intensity—can be magnetic but volatile.';
+  } else if (pair === 'Air-Earth' || pair2 === 'Air-Earth') {
+    score = 60; label = 'Challenging';
+    reason = 'Different speeds: Air wants change, Earth wants certainty.';
+  }
+
+  return { element1: e1, element2: e2, score, label, reason };
+}
+
 
     if (!profile_text || typeof profile_text !== 'string') {
       return res.status(400).json({ error: 'profile_text is required' });
