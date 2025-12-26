@@ -1,11 +1,12 @@
 // server.js
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
+
+const { buildNatalChart, norm360 } = require('./astrology');
 
 const app = express();
 app.use(cors());
@@ -79,7 +80,7 @@ app.post('/chat', async (req, res) => {
 // --------------------
 app.post('/ai/profile-improve', async (req, res) => {
   try {
-    const { profile_text, tone = 'warm_grounded' } = req.body;
+    const { profile_text } = req.body;
 
     if (!profile_text) {
       return res.status(400).json({ error: 'profile_text is required' });
@@ -127,7 +128,7 @@ Return JSON only:
 });
 
 // --------------------
-// Astrology Match (Sun-sign MVP)
+// Astrology Match (Sun-sign MVP) - keep if you want
 // --------------------
 function getSunSign(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -184,6 +185,107 @@ app.post('/match/astrology', (req, res) => {
     score: 75,
     reason: 'Sun-sign compatibility (MVP)'
   });
+});
+
+// --------------------
+// Natal chart endpoint
+// --------------------
+app.post('/astrology/chart', async (req, res) => {
+  try {
+    const { date, time, lat, lon, tz } = req.body;
+
+    const chart = await buildNatalChart({ date, time, lat, lon, tz });
+    if (!chart.ok) return res.status(400).json(chart);
+
+    res.json(chart);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'chart_failed' });
+  }
+});
+
+// --------------------
+// Matching (simple synastry skeleton)
+// --------------------
+function aspectBetween(a, b) {
+  const aspects = [
+    { name: 'Conjunction', deg: 0, orb: 8, weight: 1.0 },
+    { name: 'Opposition', deg: 180, orb: 8, weight: 0.9 },
+    { name: 'Trine', deg: 120, orb: 7, weight: 0.9 },
+    { name: 'Square', deg: 90, orb: 6, weight: 0.7 },
+    { name: 'Sextile', deg: 60, orb: 5, weight: 0.6 },
+  ];
+
+  const diff = Math.abs(norm360(a - b));
+  const d = Math.min(diff, 360 - diff);
+
+  let best = null;
+  for (const asp of aspects) {
+    const orb = Math.abs(d - asp.deg);
+    if (orb <= asp.orb) {
+      const score = (1 - orb / asp.orb) * asp.weight;
+      if (!best || score > best.score) best = { ...asp, orb, score };
+    }
+  }
+  return best;
+}
+
+app.post('/match/natal', async (req, res) => {
+  try {
+    const { personA, personB } = req.body;
+    if (!personA || !personB) {
+      return res.status(400).json({ error: 'personA and personB required' });
+    }
+
+    const chartA = await buildNatalChart(personA);
+    const chartB = await buildNatalChart(personB);
+    if (!chartA.ok) return res.status(400).json({ error: 'chartA_failed', detail: chartA });
+    if (!chartB.ok) return res.status(400).json({ error: 'chartB_failed', detail: chartB });
+
+    // Core relationship points for MVP
+    const focusPairs = [
+      ['Sun','Moon'], ['Moon','Sun'],
+      ['Venus','Mars'], ['Mars','Venus'],
+      ['Moon','Venus'], ['Venus','Moon'],
+      ['Sun','Asc'], ['Moon','Asc'],
+    ];
+
+    let total = 0;
+    let max = 0;
+    const hits = [];
+
+    for (const [pA, pB] of focusPairs) {
+      const A = (pA === 'Asc') ? chartA.angles.ascendant : chartA.planets[pA];
+      const B = (pB === 'Asc') ? chartB.angles.ascendant : chartB.planets[pB];
+      if (!A?.lon || !B?.lon) continue;
+
+      const asp = aspectBetween(A.lon, B.lon);
+      max += 1;
+      if (asp) {
+        total += asp.score;
+        hits.push({
+          a: pA, b: pB,
+          aspect: asp.name,
+          orb: +asp.orb.toFixed(2),
+          strength: +asp.score.toFixed(3)
+        });
+      }
+    }
+
+    const score = max ? Math.round((total / max) * 100) : 0;
+
+    res.json({
+      ok: true,
+      score,
+      highlights: hits.sort((x, y) => y.strength - x.strength).slice(0, 12),
+      note: 'Synastry MVP: tune weights/orbs; add Saturn/Nodes; add house overlays; composite chart later.',
+      chartA: { asc: chartA.angles.ascendant, planets: chartA.planets },
+      chartB: { asc: chartB.angles.ascendant, planets: chartB.planets },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'match_failed' });
+  }
 });
 
 // --------------------
