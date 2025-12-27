@@ -1,4 +1,5 @@
 // server.js
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -52,9 +53,7 @@ app.get('/', (req, res) => {
 app.post('/chat', async (req, res) => {
   try {
     const { message, bot } = req.body;
-    if (!message) {
-      return res.status(400).json({ error: 'message is required' });
-    }
+    if (!message) return res.status(400).json({ error: 'message is required' });
 
     const systemPrompt = loadPrompt(bot);
 
@@ -66,9 +65,7 @@ app.post('/chat', async (req, res) => {
       ]
     });
 
-    res.json({
-      reply: completion.choices?.[0]?.message?.content || ''
-    });
+    res.json({ reply: completion.choices?.[0]?.message?.content || '' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Chat error' });
@@ -111,16 +108,13 @@ Return JSON only:
 
     const raw = completion.choices?.[0]?.message?.content?.trim() || '';
 
-    if (raw.startsWith('{')) {
-      return res.json(JSON.parse(raw));
-    }
+    if (raw.startsWith('{')) return res.json(JSON.parse(raw));
 
     res.json({
       suggested_profile: raw,
       why_this_works: [],
       optional_variations: []
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Profile improve failed' });
@@ -128,7 +122,7 @@ Return JSON only:
 });
 
 // --------------------
-// Astrology Match (Sun-sign MVP) - keep if you want
+// Astrology Match (Sun-sign MVP)
 // --------------------
 function getSunSign(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -164,17 +158,11 @@ function elementOf(sign) {
 
 app.post('/match/astrology', (req, res) => {
   const { dobA, dobB } = req.body;
-
-  if (!dobA || !dobB) {
-    return res.status(400).json({ error: 'dobA and dobB required' });
-  }
+  if (!dobA || !dobB) return res.status(400).json({ error: 'dobA and dobB required' });
 
   const signA = getSunSign(dobA);
   const signB = getSunSign(dobB);
-
-  if (!signA || !signB) {
-    return res.status(400).json({ error: 'Invalid date format' });
-  }
+  if (!signA || !signB) return res.status(400).json({ error: 'Invalid date format' });
 
   res.json({
     ok: true,
@@ -192,9 +180,13 @@ app.post('/match/astrology', (req, res) => {
 // --------------------
 app.post('/astrology/chart', async (req, res) => {
   try {
-    const { date, time, lat, lon, tz } = req.body;
+    const { date, time, place, lat, lon, houseSystem } = req.body;
 
-    const chart = await buildNatalChart({ date, time, lat, lon, tz });
+    if (!date || !time) {
+      return res.status(400).json({ error: 'date and time required (YYYY-MM-DD, HH:mm)' });
+    }
+
+    const chart = await buildNatalChart({ date, time, place, lat, lon, houseSystem });
     if (!chart.ok) return res.status(400).json(chart);
 
     res.json(chart);
@@ -239,24 +231,24 @@ app.post('/match/natal', async (req, res) => {
 
     const chartA = await buildNatalChart(personA);
     const chartB = await buildNatalChart(personB);
+
     if (!chartA.ok) return res.status(400).json({ error: 'chartA_failed', detail: chartA });
     if (!chartB.ok) return res.status(400).json({ error: 'chartB_failed', detail: chartB });
 
-    // Core relationship points for MVP
-    const focusPairs = [
-      ['Sun','Moon'], ['Moon','Sun'],
-      ['Venus','Mars'], ['Mars','Venus'],
-      ['Moon','Venus'], ['Venus','Moon'],
-      ['Sun','Asc'], ['Moon','Asc'],
+    const focus = [
+      ['Sun', 'Moon'], ['Moon', 'Sun'],
+      ['Venus', 'Mars'], ['Mars', 'Venus'],
+      ['Moon', 'Venus'], ['Venus', 'Moon'],
+      ['Sun', 'Asc'], ['Moon', 'Asc'],
     ];
 
     let total = 0;
     let max = 0;
     const hits = [];
 
-    for (const [pA, pB] of focusPairs) {
-      const A = (pA === 'Asc') ? chartA.angles.ascendant : chartA.planets[pA];
-      const B = (pB === 'Asc') ? chartB.angles.ascendant : chartB.planets[pB];
+    for (const [pA, pB] of focus) {
+      const A = chartA.planets[pA] || (pA === 'Asc' ? chartA.angles.ascendant : null);
+      const B = chartB.planets[pB] || (pB === 'Asc' ? chartB.angles.ascendant : null);
       if (!A?.lon || !B?.lon) continue;
 
       const asp = aspectBetween(A.lon, B.lon);
@@ -278,9 +270,9 @@ app.post('/match/natal', async (req, res) => {
       ok: true,
       score,
       highlights: hits.sort((x, y) => y.strength - x.strength).slice(0, 12),
-      note: 'Synastry MVP: tune weights/orbs; add Saturn/Nodes; add house overlays; composite chart later.',
+      note: 'Synastry skeleton: tune weights/orbs + add house overlays + Saturn contacts + composite chart if desired.',
       chartA: { asc: chartA.angles.ascendant, planets: chartA.planets },
-      chartB: { asc: chartB.angles.ascendant, planets: chartB.planets },
+      chartB: { asc: chartB.angles.ascendant, planets: chartB.planets }
     });
   } catch (e) {
     console.error(e);
