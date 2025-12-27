@@ -1,5 +1,5 @@
 // astrology.js
-const swe = require('swisseph');
+const sweph = require('sweph');
 const tzlookup = require('tz-lookup');
 const NodeGeocoder = require('node-geocoder');
 const { DateTime } = require('luxon');
