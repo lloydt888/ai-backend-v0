@@ -1,5 +1,15 @@
 // astrology.js
 const swe = require('sweph');
+// --------------------
+// Swiss Ephemeris init (REQUIRED even for MOSEPH)
+// --------------------
+try {
+  // Empty string = built-in ephemeris (MOSEPH-safe)
+  swe.swe_set_ephe_path('');
+} catch (e) {
+  console.error('swe_set_ephe_path failed:', e);
+}
+
 const tzlookup = require('tz-lookup');
 const NodeGeocoder = require('node-geocoder');
 const { DateTime } = require('luxon');
