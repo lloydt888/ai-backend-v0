@@ -106,20 +106,24 @@ function julianDayFromUtc(utcDt) {
 }
 
 function calcHousesAndAngles(jdUt, lat, lon, houseSystem = 'P') {
-  // swe_houses(jd_ut, lat, lon, hsys, cusps, ascmc)
-  // Java example shows swe_houses usage with lat/lon and hsys. :contentReference[oaicite:6]{index=6}
-  const cusps = new Array(13).fill(0);
-  const ascmc = new Array(10).fill(0);
+  try {
+    const result = swe.swe_houses(jdUt, lat, lon, houseSystem);
 
-  swe.swe_houses(jdUt, lat, lon, houseSystem, cusps, ascmc);
+    if (!result || !Array.isArray(result.cusps) || !Array.isArray(result.ascmc)) {
+      throw new Error('invalid_houses_result');
+    }
 
-  return {
-    houseSystem,
-    cusps,         // 1..12
-    ascendant: ascmc[0], // ASC
-    midheaven: ascmc[1], // MC
-  };
+    return {
+      houseSystem,
+      cusps: result.cusps,           // index 1..12
+      ascendant: result.ascmc[0],    // ASC
+      midheaven: result.ascmc[1],    // MC
+    };
+  } catch (err) {
+    throw new Error(`houses_calc_failed: ${err.message}`);
+  }
 }
+
 
 function calcPlanets(jdUt) {
   const out = {};
