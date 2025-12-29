@@ -1,21 +1,23 @@
 {
   "name": "ai-backend-v0",
   "version": "1.0.0",
-  "description": "",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
   "type": "commonjs",
   "engines": {
     "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "openai": "^6.10.0",
-    "swisseph": "0.5.17",
-    "tz-lookup": "6.1.25"
+
+    "luxon": "3.7.2",
+    "node-geocoder": "4.4.1",
+    "tz-lookup": "6.1.25",
+    "sweph": "2.10.3-b-1"
   }
 }
