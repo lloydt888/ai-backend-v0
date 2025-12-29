@@ -18,8 +18,9 @@ const geocoder = NodeGeocoder({
 // You can use MOSEPH (built-in) to avoid shipping ephemeris files.
 // For best accuracy, you’d set an ephe path to real files.
 const BASE_FLAGS =
-  swe.SEFLG_SPEED |       // gives daily speed -> retrograde detection
-  swe.SEFLG_SWIEPH;       // Swiss ephemeris (if ephe files available)
+  swe.SEFLG_SPEED |
+  swe.SEFLG_MOSEPH;
+
 // If you want no ephe files, swap SWIEPH for MOSEPH:
 // const BASE_FLAGS = swe.SEFLG_SPEED | swe.SEFLG_MOSEPH;
 
