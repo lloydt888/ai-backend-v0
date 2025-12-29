@@ -66,11 +66,14 @@ app.post('/chat', async (req, res) => {
     });
 
     res.json({ reply: completion.choices?.[0]?.message?.content || '' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Chat error' });
-  }
-});
+  }  catch (e) {
+  console.error('Astrology chart error:', e);
+  res.status(500).json({
+    ok: false,
+    error: e.message || 'chart_failed'
+  });
+}
+
 
 // --------------------
 // AI Profile Improver

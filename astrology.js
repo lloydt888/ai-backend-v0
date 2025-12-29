@@ -123,25 +123,33 @@ function calcHousesAndAngles(jdUt, lat, lon, houseSystem = 'P') {
 
 function calcPlanets(jdUt) {
   const out = {};
+
   for (const p of PLANETS) {
-    const result = swe.swe_calc_ut(jdUt, p.id, BASE_FLAGS);
-    // result: [xx, retflag] depending on wrapper; npm swisseph returns object with data.
-    // We’ll support the common wrapper shape: { data: [lon, lat, dist, speedLon, ...], error: ... }
-    if (!result || result.error) {
-      out[p.key] = { error: result?.error || 'calc_failed' };
-      continue;
+    try {
+      const result = swe.swe_calc_ut(jdUt, p.id, BASE_FLAGS);
+
+      if (!result || !result.xx) {
+        out[p.key] = { error: 'no_data' };
+        continue;
+      }
+
+      const lon = result.xx[0];
+      const speedLon = result.xx[3];
+
+      out[p.key] = {
+        lon: norm360(lon),
+        sign: signOfLongitude(lon),
+        deg: degInSign(lon),
+        retrograde: speedLon < 0,
+      };
+    } catch (err) {
+      out[p.key] = { error: err.message || 'exception' };
     }
-    const lon = result.data[0];
-    const speedLon = result.data[3]; // speed in longitude
-    out[p.key] = {
-      lon: norm360(lon),
-      sign: signOfLongitude(lon),
-      deg: degInSign(lon),
-      retrograde: speedLon < 0,
-    };
   }
+
   return out;
 }
+
 
 // --------------------
 // Public API
