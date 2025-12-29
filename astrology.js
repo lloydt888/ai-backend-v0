@@ -1,8 +1,9 @@
 // astrology.js
-const sweph = require('sweph');
+const swe = require('sweph');
 const tzlookup = require('tz-lookup');
 const NodeGeocoder = require('node-geocoder');
 const { DateTime } = require('luxon');
+
 
 // --------------------
 // Geocoder (OSM/Nominatim via node-geocoder)
