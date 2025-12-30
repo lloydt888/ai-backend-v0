@@ -48,6 +48,37 @@ app.get('/', (req, res) => {
 });
 
 // --------------------
+// Swiss Ephemeris sanity test (TEMP)
+// --------------------
+app.get('/_debug/sweph', (req, res) => {
+  try {
+    const swe = require('sweph');
+
+    // Minimal safe call: Julian day for 2000-01-01 12:00 UT
+    const jd = swe.swe_julday(2000, 1, 1, 12, swe.SE_GREG_CAL);
+
+    const result = swe.swe_calc_ut(
+      jd,
+      swe.SE_SUN,
+      swe.SEFLG_MOSEPH
+    );
+
+    res.json({
+      ok: true,
+      jd,
+      raw: result
+    });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: e.message,
+      stack: e.stack
+    });
+  }
+});
+
+
+// --------------------
 // Chat endpoint
 // --------------------
 app.post('/chat', async (req, res) => {
