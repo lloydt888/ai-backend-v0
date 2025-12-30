@@ -53,15 +53,8 @@ app.get('/', (req, res) => {
 app.get('/_debug/sweph', (req, res) => {
   try {
     const swe = require('sweph');
-
-    // Minimal safe call: Julian day for 2000-01-01 12:00 UT
     const jd = swe.swe_julday(2000, 1, 1, 12, swe.SE_GREG_CAL);
-
-    const result = swe.swe_calc_ut(
-      jd,
-      swe.SE_SUN,
-      swe.SEFLG_MOSEPH
-    );
+    const result = swe.swe_calc_ut(jd, swe.SE_SUN, swe.SEFLG_MOSEPH);
 
     res.json({
       ok: true,
@@ -77,14 +70,15 @@ app.get('/_debug/sweph', (req, res) => {
   }
 });
 
-
 // --------------------
 // Chat endpoint
 // --------------------
 app.post('/chat', async (req, res) => {
   try {
     const { message, bot } = req.body;
-    if (!message) return res.status(400).json({ error: 'message is required' });
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
+    }
 
     const systemPrompt = loadPrompt(bot);
 
@@ -96,15 +90,14 @@ app.post('/chat', async (req, res) => {
       ]
     });
 
-    res.json({ reply: completion.choices?.[0]?.message?.content || '' });
-  }  catch (e) {
-  console.error('Astrology chart error:', e);
-  res.status(500).json({
-    ok: false,
-    error: e.message || 'chart_failed'
-  });
-}
-
+    res.json({
+      reply: completion.choices?.[0]?.message?.content || ''
+    });
+  } catch (err) {
+    console.error('Chat error:', err);
+    res.status(500).json({ error: 'Chat error' });
+  }
+});
 
 // --------------------
 // AI Profile Improver
@@ -142,7 +135,9 @@ Return JSON only:
 
     const raw = completion.choices?.[0]?.message?.content?.trim() || '';
 
-    if (raw.startsWith('{')) return res.json(JSON.parse(raw));
+    if (raw.startsWith('{')) {
+      return res.json(JSON.parse(raw));
+    }
 
     res.json({
       suggested_profile: raw,
@@ -192,11 +187,15 @@ function elementOf(sign) {
 
 app.post('/match/astrology', (req, res) => {
   const { dobA, dobB } = req.body;
-  if (!dobA || !dobB) return res.status(400).json({ error: 'dobA and dobB required' });
+  if (!dobA || !dobB) {
+    return res.status(400).json({ error: 'dobA and dobB required' });
+  }
 
   const signA = getSunSign(dobA);
   const signB = getSunSign(dobB);
-  if (!signA || !signB) return res.status(400).json({ error: 'Invalid date format' });
+  if (!signA || !signB) {
+    return res.status(400).json({ error: 'Invalid date format' });
+  }
 
   res.json({
     ok: true,
@@ -221,96 +220,15 @@ app.post('/astrology/chart', async (req, res) => {
     }
 
     const chart = await buildNatalChart({ date, time, place, lat, lon, houseSystem });
-    if (!chart.ok) return res.status(400).json(chart);
+
+    if (!chart.ok) {
+      return res.status(400).json(chart);
+    }
 
     res.json(chart);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'chart_failed' });
-  }
-});
-
-// --------------------
-// Matching (simple synastry skeleton)
-// --------------------
-function aspectBetween(a, b) {
-  const aspects = [
-    { name: 'Conjunction', deg: 0, orb: 8, weight: 1.0 },
-    { name: 'Opposition', deg: 180, orb: 8, weight: 0.9 },
-    { name: 'Trine', deg: 120, orb: 7, weight: 0.9 },
-    { name: 'Square', deg: 90, orb: 6, weight: 0.7 },
-    { name: 'Sextile', deg: 60, orb: 5, weight: 0.6 },
-  ];
-
-  const diff = Math.abs(norm360(a - b));
-  const d = Math.min(diff, 360 - diff);
-
-  let best = null;
-  for (const asp of aspects) {
-    const orb = Math.abs(d - asp.deg);
-    if (orb <= asp.orb) {
-      const score = (1 - orb / asp.orb) * asp.weight;
-      if (!best || score > best.score) best = { ...asp, orb, score };
-    }
-  }
-  return best;
-}
-
-app.post('/match/natal', async (req, res) => {
-  try {
-    const { personA, personB } = req.body;
-    if (!personA || !personB) {
-      return res.status(400).json({ error: 'personA and personB required' });
-    }
-
-    const chartA = await buildNatalChart(personA);
-    const chartB = await buildNatalChart(personB);
-
-    if (!chartA.ok) return res.status(400).json({ error: 'chartA_failed', detail: chartA });
-    if (!chartB.ok) return res.status(400).json({ error: 'chartB_failed', detail: chartB });
-
-    const focus = [
-      ['Sun', 'Moon'], ['Moon', 'Sun'],
-      ['Venus', 'Mars'], ['Mars', 'Venus'],
-      ['Moon', 'Venus'], ['Venus', 'Moon'],
-      ['Sun', 'Asc'], ['Moon', 'Asc'],
-    ];
-
-    let total = 0;
-    let max = 0;
-    const hits = [];
-
-    for (const [pA, pB] of focus) {
-      const A = chartA.planets[pA] || (pA === 'Asc' ? chartA.angles.ascendant : null);
-      const B = chartB.planets[pB] || (pB === 'Asc' ? chartB.angles.ascendant : null);
-      if (!A?.lon || !B?.lon) continue;
-
-      const asp = aspectBetween(A.lon, B.lon);
-      max += 1;
-      if (asp) {
-        total += asp.score;
-        hits.push({
-          a: pA, b: pB,
-          aspect: asp.name,
-          orb: +asp.orb.toFixed(2),
-          strength: +asp.score.toFixed(3)
-        });
-      }
-    }
-
-    const score = max ? Math.round((total / max) * 100) : 0;
-
-    res.json({
-      ok: true,
-      score,
-      highlights: hits.sort((x, y) => y.strength - x.strength).slice(0, 12),
-      note: 'Synastry skeleton: tune weights/orbs + add house overlays + Saturn contacts + composite chart if desired.',
-      chartA: { asc: chartA.angles.ascendant, planets: chartA.planets },
-      chartB: { asc: chartB.angles.ascendant, planets: chartB.planets }
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'match_failed' });
+  } catch (err) {
+    console.error('Chart error:', err);
+    res.status(500).json({ error: 'chart_failed', message: err.message });
   }
 });
 
