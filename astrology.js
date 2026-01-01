@@ -190,29 +190,40 @@ function calcPlanets(jdUt) {
     try {
       const result = calcUt(jdUt, p.id, BASE_FLAGS);
 
-          // Support multiple return shapes from sweph wrappers
+      // Pull potential position arrays from common wrapper shapes
       const raw =
-  result?.xx ??
-  result?.data?.xx ??
-  result?.data?.position ??
-  result?.data?.coords ??
-  null;
+        result?.xx ??
+        result?.data?.xx ??
+        result?.data?.position ??
+        result?.data?.coords ??
+        null;
 
-// Accept normal arrays OR typed arrays
-const xx = raw && (Array.isArray(raw) || ArrayBuffer.isView(raw))
-  ? Array.from(raw)
-  : null;
+      // Accept normal arrays OR typed arrays
+      const xx =
+        raw && (Array.isArray(raw) || ArrayBuffer.isView(raw))
+          ? Array.from(raw)
+          : null;
 
-if (!xx || xx.length < 4) {
-  // optional: log ONE sample for debugging
-  // console.log('calc_ut result shape for', p.key, result);
-  out[p.key] = { error: 'no_data' };
-  continue;
-}
+      if (!xx || xx.length < 4) {
+        // Surface the real error text, if any
+        const serr =
+          result?.serr ??
+          result?.data?.serr ??
+          result?.error ??
+          result?.data?.error ??
+          null;
 
-const lon = xx[0];
-const speedLon = xx[3];
+        // Log ONE sample to Render logs for Sun only (keeps logs clean)
+        if (p.key === 'Sun') {
+          console.log('DEBUG calc_ut Sun result:', JSON.stringify(result).slice(0, 1200));
+        }
 
+        out[p.key] = { error: serr || 'no_data', rawFlag: result?.flag ?? null };
+        continue;
+      }
+
+      const lon = xx[0];
+      const speedLon = xx[3];
 
       out[p.key] = {
         lon: norm360(lon),
@@ -227,6 +238,7 @@ const speedLon = xx[3];
 
   return out;
 }
+
 
 
 // --------------------
