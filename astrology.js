@@ -190,19 +190,26 @@ function calcPlanets(jdUt) {
     try {
       const result = calcUt(jdUt, p.id, BASE_FLAGS);
 
-    // Support multiple return shapes from sweph wrappers
-const xx =
-  result?.xx ||
-  result?.data?.xx ||
-  null;
+          // Support multiple return shapes from sweph wrappers
+      const xxRaw =
+        result?.xx ??
+        result?.data?.xx ??
+        null;
 
-if (!Array.isArray(xx)) {
-  out[p.key] = { error: 'no_data' };
-  continue;
-}
+      // xxRaw may be an Array OR a TypedArray (Float64Array etc)
+      const hasXx =
+        Array.isArray(xxRaw) || (xxRaw && ArrayBuffer.isView(xxRaw));
 
-const lon = xx[0];
-const speedLon = xx[3];
+      if (!hasXx || xxRaw.length < 4) {
+        out[p.key] = { error: 'no_data' };
+        continue;
+      }
+
+      // Normalize to plain JS array
+      const xx = Array.from(xxRaw);
+
+      const lon = xx[0];
+      const speedLon = xx[3];
 
       out[p.key] = {
         lon: norm360(lon),
