@@ -47,8 +47,7 @@ const geocoder = NodeGeocoder({
 // You can use MOSEPH (built-in) to avoid shipping ephemeris files.
 // For best accuracy, you’d set an ephe path to real files.
 const BASE_FLAGS =
-  C.SEFLG_SPEED |
-  C.SEFLG_MOSEPH;
+  C.SEFLG_SPEED; // ← REMOVE MOSEPH
 
 // If you want no ephe files, swap SWIEPH for MOSEPH:
 // const BASE_FLAGS = swe.SEFLG_SPEED | swe.SEFLG_MOSEPH;
