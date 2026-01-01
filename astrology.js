@@ -138,10 +138,10 @@ function calcHousesAndAngles(jdUt, lat, lon, houseSystem = 'P') {
   try {
     const result = houses(jdUt, lat, lon, houseSystem);
 
-    // Support multiple return shapes from different wrappers:
-    // 1) [cusps, ascmc]
-    // 2) { cusps, ascmc }
-    // 3) { cusp, ascmc }
+        // Support multiple return shapes from different wrappers:
+    // A) [cusps, ascmc]
+    // B) { cusps, ascmc }
+    // C) { flag, data: { houses: [...12], points: [...] } }
     let cusps = null;
     let ascmc = null;
 
@@ -149,13 +149,24 @@ function calcHousesAndAngles(jdUt, lat, lon, houseSystem = 'P') {
       cusps = result[0];
       ascmc = result[1];
     } else if (result && typeof result === 'object') {
-      cusps = result.cusps || result.cusp || result.house || null;
-      ascmc = result.ascmc || result.angles || null;
+      // NEW: sweph wrapper shape
+      if (result.data && Array.isArray(result.data.houses) && Array.isArray(result.data.points)) {
+        // normalize cusps to index 1..12 (your downstream expects slice(1,13))
+        cusps = [null, ...result.data.houses];       // length 13, indexes 1..12
+        const pts = result.data.points;
+
+        // points[0] looks like ASC, points[1] looks like MC in your logs
+        ascmc = [pts[0], pts[1], ...pts.slice(2)];
+      } else {
+        cusps = result.cusps || result.cusp || null;
+        ascmc = result.ascmc || result.angles || null;
+      }
     }
 
-    if (!Array.isArray(cusps) || !Array.isArray(ascmc)) {
+    if (!Array.isArray(cusps) || cusps.length < 13 || !Array.isArray(ascmc)) {
       throw new Error(`invalid_houses_result: ${JSON.stringify(result).slice(0, 300)}`);
     }
+
 
     return {
       houseSystem,
