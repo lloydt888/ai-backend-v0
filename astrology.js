@@ -47,8 +47,8 @@ const geocoder = NodeGeocoder({
 // You can use MOSEPH (built-in) to avoid shipping ephemeris files.
 // For best accuracy, you’d set an ephe path to real files.
 const BASE_FLAGS =
-  swe.SEFLG_SPEED |
-  swe.SEFLG_MOSEPH;
+  C.SEFLG_SPEED |
+  C.SEFLG_MOSEPH;
 
 // If you want no ephe files, swap SWIEPH for MOSEPH:
 // const BASE_FLAGS = swe.SEFLG_SPEED | swe.SEFLG_MOSEPH;
@@ -131,12 +131,12 @@ function julianDayFromUtc(utcDt) {
   const m = utcDt.month;
   const d = utcDt.day;
   const hour = utcDt.hour + utcDt.minute / 60 + utcDt.second / 3600;
-  return swe.swe_julday(y, m, d, hour, swe.SE_GREG_CAL);
+  return julday(y, m, d, hour, C.SE_GREG_CAL);
 }
 
 function calcHousesAndAngles(jdUt, lat, lon, houseSystem = 'P') {
   try {
-    const result = swe.swe_houses(jdUt, lat, lon, houseSystem);
+    const result = houses(jdUt, lat, lon, houseSystem);
 
     if (!result || !Array.isArray(result.cusps) || !Array.isArray(result.ascmc)) {
       throw new Error('invalid_houses_result');
@@ -159,7 +159,7 @@ function calcPlanets(jdUt) {
 
   for (const p of PLANETS) {
     try {
-      const result = swe.swe_calc_ut(jdUt, p.id, BASE_FLAGS);
+      const result = calcUt(jdUt, p.id, BASE_FLAGS);
 
       if (!result || !result.xx) {
         out[p.key] = { error: 'no_data' };
