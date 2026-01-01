@@ -1,14 +1,33 @@
 // astrology.js
-const swe = require('sweph');
-// --------------------
-// Swiss Ephemeris init (REQUIRED even for MOSEPH)
-// --------------------
-try {
-  // Empty string = built-in ephemeris (MOSEPH-safe)
-  swe.swe_set_ephe_path('');
-} catch (e) {
-  console.error('swe_set_ephe_path failed:', e);
+const sweImport = require('sweph');
+const swe = sweImport.default || sweImport;
+
+// Some builds export constants under `constants`
+const C = swe.constants || swe;
+
+// Function name compatibility (swe_* vs non-prefixed)
+const pickFn = (...names) => {
+  for (const n of names) if (typeof swe[n] === 'function') return swe[n];
+  return null;
+};
+
+const setEphePath = pickFn('swe_set_ephe_path', 'set_ephe_path');
+const julday     = pickFn('swe_julday', 'julday');
+const calcUt     = pickFn('swe_calc_ut', 'calc_ut');
+const houses     = pickFn('swe_houses', 'houses');
+
+if (!julday || !calcUt || !houses) {
+  console.error('SWE EXPORT SHAPE:', Object.keys(swe));
+  throw new Error('Swiss Ephemeris functions missing (julday/calc_ut/houses)');
 }
+
+// Swiss Ephemeris init (MOSEPH-safe)
+try {
+  if (setEphePath) setEphePath('');
+} catch (e) {
+  console.error('set_ephe_path failed:', e);
+}
+
 
 const tzlookup = require('tz-lookup');
 const NodeGeocoder = require('node-geocoder');
