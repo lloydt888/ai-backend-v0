@@ -190,39 +190,34 @@ function calcPlanets(jdUt) {
       const result = calcUt(jdUt, p.id, BASE_FLAGS);
 
       // Pull potential position arrays from common wrapper shapes
-      const raw =
-        result?.xx ??
-        result?.data?.xx ??
-        result?.data?.position ??
-        result?.data?.coords ??
-        null;
+     const raw =
+  result?.data && (Array.isArray(result.data) || ArrayBuffer.isView(result.data))
+    ? result.data
+    : result?.xx ??
+      result?.data?.xx ??
+      result?.data?.position ??
+      result?.data?.coords ??
+      null;
 
-      // Accept normal arrays OR typed arrays
-      const xx =
-        raw && (Array.isArray(raw) || ArrayBuffer.isView(raw))
-          ? Array.from(raw)
-          : null;
+// Accept normal arrays OR typed arrays
+const xx =
+  raw && (Array.isArray(raw) || ArrayBuffer.isView(raw))
+    ? Array.from(raw)
+    : null;
 
-      if (!xx || xx.length < 4) {
-        // Surface the real error text, if any
-        const serr =
-          result?.serr ??
-          result?.data?.serr ??
-          result?.error ??
-          result?.data?.error ??
-          null;
+if (!xx || xx.length < 4) {
+  const serr =
+    result?.error ??
+    result?.data?.serr ??
+    'no_data';
 
-        // Log ONE sample to Render logs for Sun only (keeps logs clean)
-        if (p.key === 'Sun') {
-          console.log('DEBUG calc_ut Sun result:', JSON.stringify(result).slice(0, 1200));
-        }
+  out[p.key] = { error: serr, rawFlag: result?.flag ?? null };
+  continue;
+}
 
-        out[p.key] = { error: serr || 'no_data', rawFlag: result?.flag ?? null };
-        continue;
-      }
+const lon = xx[0];
+const speedLon = xx[3];
 
-      const lon = xx[0];
-      const speedLon = xx[3];
 
       out[p.key] = {
         lon: norm360(lon),
