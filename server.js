@@ -82,7 +82,6 @@ app.post('/chat', async (req, res) => {
 app.post('/ai/profile-improve', async (req, res) => {
   try {
     const { profile_text } = req.body;
-
     if (!profile_text) {
       return res.status(400).json({ error: 'profile_text is required' });
     }
@@ -128,7 +127,7 @@ Return JSON only:
 });
 
 // --------------------
-// Astrology Match (Sun-sign MVP)
+// Astrology helpers
 // --------------------
 function getSunSign(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -162,6 +161,9 @@ function elementOf(sign) {
   return map[sign];
 }
 
+// --------------------
+// Sun-sign Match (MVP)
+// --------------------
 app.post('/match/astrology', (req, res) => {
   const { dobA, dobB } = req.body;
   if (!dobA || !dobB) {
@@ -180,9 +182,65 @@ app.post('/match/astrology', (req, res) => {
     signB,
     elementA: elementOf(signA),
     elementB: elementOf(signB),
-    score: 75,
+    score: 7.5,
     reason: 'Sun-sign compatibility (MVP)'
   });
+});
+
+// --------------------
+// Harmonic Match (Advanced – v1)
+// --------------------
+app.post('/match/harmonic', async (req, res) => {
+  try {
+    const { chartA, chartB, harmonics = [7, 11, 17] } = req.body;
+
+    if (!chartA || !chartB) {
+      return res.status(400).json({
+        error: 'chartA and chartB (natal chart JSON) required'
+      });
+    }
+
+    let score = 0;
+
+    // Sun–Moon resonance
+    if (
+      chartA.planets?.Sun?.sign &&
+      chartB.planets?.Moon?.sign &&
+      elementOf(chartA.planets.Sun.sign) ===
+      elementOf(chartB.planets.Moon.sign)
+    ) score += 4;
+
+    // Venus–Mars polarity
+    if (
+      chartA.planets?.Venus?.sign &&
+      chartB.planets?.Mars?.sign &&
+      elementOf(chartA.planets.Venus.sign) ===
+      elementOf(chartB.planets.Mars.sign)
+    ) score += 3;
+
+    // Harmonic depth bonus
+    score += harmonics.length * 0.5;
+
+    const score10 = Math.min(10, Number(score.toFixed(1)));
+
+    res.json({
+      ok: true,
+      harmonics,
+      score10,
+      interpretation:
+        score10 >= 7
+          ? 'High harmonic resonance'
+          : score10 >= 4
+          ? 'Moderate harmonic compatibility'
+          : 'Low harmonic resonance (growth-oriented)'
+    });
+  } catch (err) {
+    console.error('Harmonic match error:', err);
+    res.status(500).json({
+      error: 'harmonic_match_failed',
+      message: err.message
+    });
+  }
 });
 
 // --------------------
@@ -193,10 +251,19 @@ app.post('/astrology/chart', async (req, res) => {
     const { date, time, place, lat, lon, houseSystem } = req.body;
 
     if (!date || !time) {
-      return res.status(400).json({ error: 'date and time required (YYYY-MM-DD, HH:mm)' });
+      return res.status(400).json({
+        error: 'date and time required (YYYY-MM-DD, HH:mm)'
+      });
     }
 
-    const chart = await buildNatalChart({ date, time, place, lat, lon, houseSystem });
+    const chart = await buildNatalChart({
+      date,
+      time,
+      place,
+      lat,
+      lon,
+      houseSystem
+    });
 
     if (!chart.ok) {
       return res.status(400).json(chart);
@@ -205,7 +272,10 @@ app.post('/astrology/chart', async (req, res) => {
     res.json(chart);
   } catch (err) {
     console.error('Chart error:', err);
-    res.status(500).json({ error: 'chart_failed', message: err.message });
+    res.status(500).json({
+      error: 'chart_failed',
+      message: err.message
+    });
   }
 });
 
