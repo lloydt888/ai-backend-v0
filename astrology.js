@@ -54,18 +54,18 @@ const BASE_FLAGS =
 // const BASE_FLAGS = swe.SEFLG_SPEED | swe.SEFLG_MOSEPH;
 
 const PLANETS = [
-  { key: 'Sun', id: swe.SE_SUN },
-  { key: 'Moon', id: swe.SE_MOON },
-  { key: 'Mercury', id: swe.SE_MERCURY },
-  { key: 'Venus', id: swe.SE_VENUS },
-  { key: 'Mars', id: swe.SE_MARS },
-  { key: 'Jupiter', id: swe.SE_JUPITER },
-  { key: 'Saturn', id: swe.SE_SATURN },
-  { key: 'Uranus', id: swe.SE_URANUS },
-  { key: 'Neptune', id: swe.SE_NEPTUNE },
-  { key: 'Pluto', id: swe.SE_PLUTO },
-  // Optional: Node, Chiron, etc. (depends on your chosen model)
+  { key: 'Sun', id: C.SE_SUN },
+  { key: 'Moon', id: C.SE_MOON },
+  { key: 'Mercury', id: C.SE_MERCURY },
+  { key: 'Venus', id: C.SE_VENUS },
+  { key: 'Mars', id: C.SE_MARS },
+  { key: 'Jupiter', id: C.SE_JUPITER },
+  { key: 'Saturn', id: C.SE_SATURN },
+  { key: 'Uranus', id: C.SE_URANUS },
+  { key: 'Neptune', id: C.SE_NEPTUNE },
+  { key: 'Pluto', id: C.SE_PLUTO },
 ];
+
 
 // --------------------
 // Utilities
