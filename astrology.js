@@ -138,20 +138,36 @@ function calcHousesAndAngles(jdUt, lat, lon, houseSystem = 'P') {
   try {
     const result = houses(jdUt, lat, lon, houseSystem);
 
-    if (!result || !Array.isArray(result.cusps) || !Array.isArray(result.ascmc)) {
-      throw new Error('invalid_houses_result');
+    // Support multiple return shapes from different wrappers:
+    // 1) [cusps, ascmc]
+    // 2) { cusps, ascmc }
+    // 3) { cusp, ascmc }
+    let cusps = null;
+    let ascmc = null;
+
+    if (Array.isArray(result)) {
+      cusps = result[0];
+      ascmc = result[1];
+    } else if (result && typeof result === 'object') {
+      cusps = result.cusps || result.cusp || result.house || null;
+      ascmc = result.ascmc || result.angles || null;
+    }
+
+    if (!Array.isArray(cusps) || !Array.isArray(ascmc)) {
+      throw new Error(`invalid_houses_result: ${JSON.stringify(result).slice(0, 300)}`);
     }
 
     return {
       houseSystem,
-      cusps: result.cusps,           // index 1..12
-      ascendant: result.ascmc[0],    // ASC
-      midheaven: result.ascmc[1],    // MC
+      cusps,                // should be index 1..12 or 0..12 depending on wrapper
+      ascendant: ascmc[0],  // ASC
+      midheaven: ascmc[1],  // MC
     };
   } catch (err) {
     throw new Error(`houses_calc_failed: ${err.message}`);
   }
 }
+
 
 
 function calcPlanets(jdUt) {
