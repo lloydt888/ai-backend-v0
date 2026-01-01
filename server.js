@@ -8,6 +8,7 @@ const path = require('path');
 const OpenAI = require('openai');
 
 const { buildNatalChart } = require('./astrology');
+const { harmonicMatchScore } = require('./harmonicMatch'); // NEW
 
 const app = express();
 app.use(cors());
@@ -31,10 +32,7 @@ function loadPrompt(botName) {
   const promptPath = path.join(__dirname, 'prompts', `${safeName}.txt`);
 
   if (!fs.existsSync(promptPath)) {
-    return fs.readFileSync(
-      path.join(__dirname, 'prompts', 'dating.txt'),
-      'utf8'
-    );
+    return fs.readFileSync(path.join(__dirname, 'prompts', 'dating.txt'), 'utf8');
   }
 
   return fs.readFileSync(promptPath, 'utf8');
@@ -53,9 +51,7 @@ app.get('/', (req, res) => {
 app.post('/chat', async (req, res) => {
   try {
     const { message, bot } = req.body;
-    if (!message) {
-      return res.status(400).json({ error: 'message is required' });
-    }
+    if (!message) return res.status(400).json({ error: 'message is required' });
 
     const systemPrompt = loadPrompt(bot);
 
@@ -67,9 +63,7 @@ app.post('/chat', async (req, res) => {
       ]
     });
 
-    res.json({
-      reply: completion.choices?.[0]?.message?.content || ''
-    });
+    res.json({ reply: completion.choices?.[0]?.message?.content || '' });
   } catch (err) {
     console.error('Chat error:', err);
     res.status(500).json({ error: 'Chat error' });
@@ -82,9 +76,7 @@ app.post('/chat', async (req, res) => {
 app.post('/ai/profile-improve', async (req, res) => {
   try {
     const { profile_text } = req.body;
-    if (!profile_text) {
-      return res.status(400).json({ error: 'profile_text is required' });
-    }
+    if (!profile_text) return res.status(400).json({ error: 'profile_text is required' });
 
     const systemPrompt = `
 You are an AI Profile Assistant for a dating app.
@@ -111,9 +103,7 @@ Return JSON only:
 
     const raw = completion.choices?.[0]?.message?.content?.trim() || '';
 
-    if (raw.startsWith('{')) {
-      return res.json(JSON.parse(raw));
-    }
+    if (raw.startsWith('{')) return res.json(JSON.parse(raw));
 
     res.json({
       suggested_profile: raw,
@@ -127,7 +117,7 @@ Return JSON only:
 });
 
 // --------------------
-// Astrology helpers
+// Astrology Match (Sun-sign MVP)
 // --------------------
 function getSunSign(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -161,20 +151,13 @@ function elementOf(sign) {
   return map[sign];
 }
 
-// --------------------
-// Sun-sign Match (MVP)
-// --------------------
 app.post('/match/astrology', (req, res) => {
   const { dobA, dobB } = req.body;
-  if (!dobA || !dobB) {
-    return res.status(400).json({ error: 'dobA and dobB required' });
-  }
+  if (!dobA || !dobB) return res.status(400).json({ error: 'dobA and dobB required' });
 
   const signA = getSunSign(dobA);
   const signB = getSunSign(dobB);
-  if (!signA || !signB) {
-    return res.status(400).json({ error: 'Invalid date format' });
-  }
+  if (!signA || !signB) return res.status(400).json({ error: 'Invalid date format' });
 
   res.json({
     ok: true,
@@ -182,65 +165,9 @@ app.post('/match/astrology', (req, res) => {
     signB,
     elementA: elementOf(signA),
     elementB: elementOf(signB),
-    score: 7.5,
+    score: 75,
     reason: 'Sun-sign compatibility (MVP)'
   });
-});
-
-// --------------------
-// Harmonic Match (Advanced – v1)
-// --------------------
-app.post('/match/harmonic', async (req, res) => {
-  try {
-    const { chartA, chartB, harmonics = [7, 11, 17] } = req.body;
-
-    if (!chartA || !chartB) {
-      return res.status(400).json({
-        error: 'chartA and chartB (natal chart JSON) required'
-      });
-    }
-
-    let score = 0;
-
-    // Sun–Moon resonance
-    if (
-      chartA.planets?.Sun?.sign &&
-      chartB.planets?.Moon?.sign &&
-      elementOf(chartA.planets.Sun.sign) ===
-      elementOf(chartB.planets.Moon.sign)
-    ) score += 4;
-
-    // Venus–Mars polarity
-    if (
-      chartA.planets?.Venus?.sign &&
-      chartB.planets?.Mars?.sign &&
-      elementOf(chartA.planets.Venus.sign) ===
-      elementOf(chartB.planets.Mars.sign)
-    ) score += 3;
-
-    // Harmonic depth bonus
-    score += harmonics.length * 0.5;
-
-    const score10 = Math.min(10, Number(score.toFixed(1)));
-
-    res.json({
-      ok: true,
-      harmonics,
-      score10,
-      interpretation:
-        score10 >= 7
-          ? 'High harmonic resonance'
-          : score10 >= 4
-          ? 'Moderate harmonic compatibility'
-          : 'Low harmonic resonance (growth-oriented)'
-    });
-  } catch (err) {
-    console.error('Harmonic match error:', err);
-    res.status(500).json({
-      error: 'harmonic_match_failed',
-      message: err.message
-    });
-  }
 });
 
 // --------------------
@@ -249,33 +176,63 @@ app.post('/match/harmonic', async (req, res) => {
 app.post('/astrology/chart', async (req, res) => {
   try {
     const { date, time, place, lat, lon, houseSystem } = req.body;
-
     if (!date || !time) {
-      return res.status(400).json({
-        error: 'date and time required (YYYY-MM-DD, HH:mm)'
-      });
+      return res.status(400).json({ error: 'date and time required (YYYY-MM-DD, HH:mm)' });
     }
 
-    const chart = await buildNatalChart({
-      date,
-      time,
-      place,
-      lat,
-      lon,
-      houseSystem
-    });
-
-    if (!chart.ok) {
-      return res.status(400).json(chart);
-    }
+    const chart = await buildNatalChart({ date, time, place, lat, lon, houseSystem });
+    if (!chart.ok) return res.status(400).json(chart);
 
     res.json(chart);
   } catch (err) {
     console.error('Chart error:', err);
-    res.status(500).json({
-      error: 'chart_failed',
-      message: err.message
+    res.status(500).json({ error: 'chart_failed', message: err.message });
+  }
+});
+
+// --------------------
+// Harmonic Match endpoint (Advanced - v1)
+// --------------------
+// Expects:
+// {
+//   "personA": { "date":"YYYY-MM-DD","time":"HH:mm","lat":-33.8,"lon":151.2, "place":"optional" },
+//   "personB": { "date":"YYYY-MM-DD","time":"HH:mm","lat":-33.8,"lon":151.2, "place":"optional" },
+//   "harmonics": [7,11,17],          // optional
+//   "orbDeg": 3                      // optional
+// }
+app.post('/match/harmonic', async (req, res) => {
+  try {
+    const { personA, personB, harmonics = [7, 11, 17], orbDeg = 3 } = req.body;
+
+    if (!personA || !personB) {
+      return res.status(400).json({ error: 'personA and personB required' });
+    }
+    if (!personA.date || !personA.time || (!personA.place && (personA.lat == null || personA.lon == null))) {
+      return res.status(400).json({ error: 'personA requires date,time and (place OR lat/lon)' });
+    }
+    if (!personB.date || !personB.time || (!personB.place && (personB.lat == null || personB.lon == null))) {
+      return res.status(400).json({ error: 'personB requires date,time and (place OR lat/lon)' });
+    }
+
+    const chartA = await buildNatalChart(personA);
+    const chartB = await buildNatalChart(personB);
+
+    if (!chartA.ok) return res.status(400).json({ error: 'chartA_failed', details: chartA });
+    if (!chartB.ok) return res.status(400).json({ error: 'chartB_failed', details: chartB });
+
+    const result = harmonicMatchScore({ chartA, chartB, harmonics, orbDeg });
+
+    res.json({
+      ok: true,
+      harmonics,
+      orbDeg,
+      score10: result.score10,
+      breakdown: result.breakdown,
+      notes: result.notes
     });
+  } catch (err) {
+    console.error('Harmonic match error:', err);
+    res.status(500).json({ error: 'harmonic_match_failed', message: err.message });
   }
 });
 
