@@ -52,23 +52,52 @@ app.get('/', (req, res) => {
 // --------------------
 app.get('/_debug/sweph', (req, res) => {
   try {
-    const swe = require('sweph');
-    const jd = swe.swe_julday(2000, 1, 1, 12, swe.SE_GREG_CAL);
-    const result = swe.swe_calc_ut(jd, swe.SE_SUN, swe.SEFLG_MOSEPH);
+    const sweImport = require('sweph');
+    const swe = sweImport.default || sweImport;
+    const C = swe.constants || swe;
+
+    const pickFn = (...names) => {
+      for (const n of names) if (typeof swe[n] === 'function') return swe[n];
+      return null;
+    };
+
+    const julday = pickFn('swe_julday', 'julday');
+    const calcUt = pickFn('swe_calc_ut', 'calc_ut');
+
+    if (!julday || !calcUt) {
+      return res.json({
+        ok: false,
+        msg: 'julday/calc_ut missing',
+        sweKeys: Object.keys(swe),
+      });
+    }
+
+    // fixed test date/time so we can compare consistently
+    const jd = julday(2000, 1, 1, 0, C.SE_GREG_CAL);
+    const flags = (C.SEFLG_SPEED | C.SEFLG_MOSEPH);
+
+    const r = calcUt(jd, C.SE_SUN, flags);
 
     res.json({
       ok: true,
+      node: process.version,
       jd,
-      raw: result
+      flags,
+      sweKeys: Object.keys(swe),
+      constHas: {
+        SE_SUN: C.SE_SUN,
+        SEFLG_MOSEPH: C.SEFLG_MOSEPH,
+        SEFLG_SPEED: C.SEFLG_SPEED,
+      },
+      resultType: typeof r,
+      resultKeys: r && typeof r === 'object' ? Object.keys(r) : null,
+      result: r,
     });
   } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: e.message,
-      stack: e.stack
-    });
+    res.json({ ok: false, error: e.message, stack: e.stack });
   }
 });
+
 
 // --------------------
 // Chat endpoint
