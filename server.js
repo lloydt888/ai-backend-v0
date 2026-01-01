@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 
-const { buildNatalChart, norm360 } = require('./astrology');
+const { buildNatalChart } = require('./astrology');
 
 const app = express();
 app.use(cors());
