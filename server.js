@@ -22,7 +22,7 @@ const client = new OpenAI({
 });
 
 // --------------------
-// Helpers
+// Prompt loader
 // --------------------
 function loadPrompt(botName) {
   const safeName = (botName || 'dating')
@@ -36,6 +36,176 @@ function loadPrompt(botName) {
   }
 
   return fs.readFileSync(promptPath, 'utf8');
+}
+
+// --------------------
+// Diablo “rails” (lightweight server-side control)
+// --------------------
+// MVP in-memory sessions. For production / multiple instances, use Redis.
+const sessions = new Map();
+
+function isDiabloBot(botName = '') {
+  const b = String(botName || '').toLowerCase();
+  return b === 'diablo' || b.includes('diablo');
+}
+
+function getSessionKey(req) {
+  // Best: pass a stable session_id from frontend (recommended)
+  // Fallback: header, then IP+UA (imperfect but works for MVP)
+  return (
+    req.body.session_id ||
+    req.headers['x-session-id'] ||
+    `${req.ip}|${req.headers['user-agent'] || 'ua'}`
+  );
+}
+
+function getState(key) {
+  if (!sessions.has(key)) {
+    sessions.set(key, {
+      issue: null,
+      suburb: null,
+      urgency: null,
+      name: null,
+      phone: null
+    });
+  }
+  return sessions.get(key);
+}
+
+function extractPhone(text = '') {
+  // AU mobile: 04XXXXXXXX or +614XXXXXXXX (spaces ok)
+  const compact = String(text).replace(/\s+/g, '');
+  const m = compact.match(/(?:\+?61|0)4\d{8}/);
+  return m ? m[0] : null;
+}
+
+function extractUrgency(text = '') {
+  const t = String(text).toLowerCase();
+  if (/\b(asap|urgent|immediately|right now|now)\b/.test(t)) return 'ASAP';
+  if (/\b(today|tonight)\b/.test(t)) return 'Today';
+  if (/\b(tomorrow)\b/.test(t)) return 'Tomorrow';
+  if (/\b(this week|next few days)\b/.test(t)) return 'This week';
+  return null;
+}
+
+function extractName(text = '') {
+  // Very light heuristics: "Lloyd", "— Lloyd", "name: Lloyd"
+  const raw = String(text).trim();
+  const m1 = raw.match(/\bname\s*[:\-]\s*([A-Za-z]{2,})\b/i);
+  if (m1) return m1[1];
+
+  const m2 = raw.match(/[—\-]\s*([A-Za-z]{2,})\b/); // "0427... - Lloyd"
+  if (m2) return m2[1];
+
+  // If the message is a single word and looks like a name
+  if (/^[A-Za-z]{2,}$/.test(raw)) return raw;
+
+  return null;
+}
+
+function extractSuburb(text = '') {
+  // Keep it simple: capture "in X", "suburb X", "at X"
+  // (Not perfect, but helps reduce repeats)
+  const t = String(text).trim();
+  const m =
+    t.match(/\b(?:suburb|in|at)\s+([A-Za-z][A-Za-z\s'-]{2,})\b/i) ||
+    t.match(/\b([A-Za-z][A-Za-z\s'-]{2,})\s+(?:nsw|sydney)\b/i);
+
+  if (!m) return null;
+
+  // Clean trailing punctuation
+  return m[1].replace(/[.,!?]$/g, '').trim();
+}
+
+function isEmergency(text = '') {
+  const t = String(text).toLowerCase();
+
+  // Include the big “don’t miss” danger signals
+  const keywords = [
+    'smoke',
+    'sparks',
+    'spark',
+    'burning smell',
+    'burning',
+    'fire',
+    'flames',
+    'electric shock',
+    'shocked',
+    'tingle',
+    'tingling',
+    'hot switchboard',
+    'switchboard hot',
+    'hot to touch',
+    'buzzing',
+    'crackling',
+    'arcing',
+    'arc',
+    'melt',
+    'melting',
+    'scorch',
+    'scorched',
+    'water near',
+    'water leak',
+    'flood',
+    'wet power',
+    'wet switchboard'
+  ];
+
+  return keywords.some((k) => t.includes(k));
+}
+
+function shouldSetIssueFromMessage(message = '') {
+  const m = String(message).trim();
+  if (m.length < 4) return false;
+
+  // Avoid setting issue to vague “yes”, “ok”, etc.
+  const low = m.toLowerCase();
+  const junk = new Set(['yes', 'yep', 'ok', 'okay', 'sure', 'please', 'thanks', 'thank you']);
+  if (junk.has(low)) return false;
+
+  return true;
+}
+
+function updateSlotsFromMessage(state, message) {
+  const phone = extractPhone(message);
+  if (phone) state.phone = state.phone || phone;
+
+  const urg = extractUrgency(message);
+  if (urg) state.urgency = state.urgency || urg;
+
+  const nm = extractName(message);
+  if (nm) state.name = state.name || nm;
+
+  const sub = extractSuburb(message);
+  if (sub) state.suburb = state.suburb || sub;
+
+  if (!state.issue && shouldSetIssueFromMessage(message)) {
+    state.issue = message.trim();
+  }
+}
+
+function nextQuestion(state) {
+  // One question at a time, receptionist-style
+  if (!state.issue) return 'What’s the electrical issue you need help with?';
+  if (!state.suburb) return 'What suburb is the job in?';
+  if (!state.urgency) return 'How urgent is it — ASAP, today, or this week?';
+  if (!state.name) return 'What’s your name?';
+  if (!state.phone) return 'What’s the best mobile number for our electrician to call you on?';
+  return null;
+}
+
+function closingMessage() {
+  return 'Awesome, thanks for your details! I’ve got everything I need. Our admin will give you a quick call soon to lock in a time. You can also reach us anytime on 0430 718 800 or 0476 386 813 ⚡';
+}
+
+function emergencyReply() {
+  return (
+    '⚠️ Thanks for telling me — this could be dangerous.\n\n' +
+    'Please don’t touch the equipment again.\n\n' +
+    'If there’s smoke, fire, or a burning smell, call 000 immediately.\n' +
+    'If it’s safe, turn off the main power and keep everyone clear.\n\n' +
+    'What suburb are you in so I can organise urgent help today?'
+  );
 }
 
 // --------------------
@@ -54,16 +224,62 @@ app.post('/chat', async (req, res) => {
     if (!message) return res.status(400).json({ error: 'message is required' });
 
     const systemPrompt = loadPrompt(bot);
+    const isDiablo = isDiabloBot(bot);
+
+    // If not Diablo, keep original simple behaviour
+    if (!isDiablo) {
+      const completion = await client.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ]
+      });
+
+      return res.json({ reply: completion.choices?.[0]?.message?.content || '' });
+    }
+
+    // Diablo rails
+    const sessionKey = getSessionKey(req);
+    const state = getState(sessionKey);
+
+    updateSlotsFromMessage(state, message);
+
+    // Emergency short-circuit (call 000 + dispatch suburb)
+    if (isEmergency(message)) {
+      // Ensure we at least store issue for context
+      if (!state.issue && shouldSetIssueFromMessage(message)) state.issue = message.trim();
+      return res.json({ reply: emergencyReply() });
+    }
+
+    // If we have everything, close
+    const nq = nextQuestion(state);
+    if (!nq) {
+      return res.json({ reply: closingMessage() });
+    }
+
+    // Tiny runtime guide to prevent looping / assumptions while keeping prompt small
+    const runtimeGuide = [
+      'You are Diablo Electrical’s RECEPTIONIST (not a technician).',
+      'Be calm, brief, and professional. Emojis sparingly.',
+      'Ask ONE question only.',
+      'Do not repeat questions or ask for info already provided.',
+      `Your next question must be exactly: "${nq}"`,
+      'If the user asked something, answer in 1 sentence max, then ask the next question.'
+    ].join('\n');
 
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
+        { role: 'system', content: runtimeGuide },
         { role: 'user', content: message }
-      ]
+      ],
+      temperature: 0.4
     });
 
-    res.json({ reply: completion.choices?.[0]?.message?.content || '' });
+    const reply = completion.choices?.[0]?.message?.content || '';
+    res.json({ reply });
   } catch (err) {
     console.error('Chat error:', err);
     res.status(500).json({ error: 'Chat error' });
