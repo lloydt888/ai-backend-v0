@@ -25,13 +25,17 @@ const client = new OpenAI({
 // Prompt loader
 // --------------------
 function loadPrompt(botName) {
-  const safeName = (botName || 'dating')
+  // ✅ Default to diablo, not dating
+  const safeName = (botName || 'diablo')
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, '');
 
   const promptPath = path.join(__dirname, 'prompts', `${safeName}.txt`);
 
   if (!fs.existsSync(promptPath)) {
+    // fallback to diablo if missing
+    const fallback = path.join(__dirname, 'prompts', 'diablo.txt');
+    if (fs.existsSync(fallback)) return fs.readFileSync(fallback, 'utf8');
     return fs.readFileSync(path.join(__dirname, 'prompts', 'dating.txt'), 'utf8');
   }
 
@@ -105,7 +109,6 @@ function extractName(text = '') {
 
 function extractSuburb(text = '') {
   // Keep it simple: capture "in X", "suburb X", "at X"
-  // (Not perfect, but helps reduce repeats)
   const t = String(text).trim();
   const m =
     t.match(/\b(?:suburb|in|at)\s+([A-Za-z][A-Za-z\s'-]{2,})\b/i) ||
@@ -220,7 +223,9 @@ app.get('/', (req, res) => {
 // --------------------
 app.post('/chat', async (req, res) => {
   try {
-    const { message, bot } = req.body;
+    // ✅ Accept optional extras (session_id/page_context)
+    const { message, bot, session_id, page_context } = req.body;
+
     if (!message) return res.status(400).json({ error: 'message is required' });
 
     const systemPrompt = loadPrompt(bot);
@@ -247,7 +252,6 @@ app.post('/chat', async (req, res) => {
 
     // Emergency short-circuit (call 000 + dispatch suburb)
     if (isEmergency(message)) {
-      // Ensure we at least store issue for context
       if (!state.issue && shouldSetIssueFromMessage(message)) state.issue = message.trim();
       return res.json({ reply: emergencyReply() });
     }
@@ -409,13 +413,6 @@ app.post('/astrology/chart', async (req, res) => {
 // --------------------
 // Harmonic Match endpoint (Advanced - v1)
 // --------------------
-// Expects:
-// {
-//   "personA": { "date":"YYYY-MM-DD","time":"HH:mm","lat":-33.8,"lon":151.2, "place":"optional" },
-//   "personB": { "date":"YYYY-MM-DD","time":"HH:mm","lat":-33.8,"lon":151.2, "place":"optional" },
-//   "harmonics": [7,11,17],          // optional
-//   "orbDeg": 3                      // optional
-// }
 app.post('/match/harmonic', async (req, res) => {
   try {
     const { personA, personB, harmonics = [7, 11, 17], orbDeg = 3 } = req.body;
