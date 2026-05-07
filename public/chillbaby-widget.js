@@ -29,7 +29,7 @@
     // Bubble
     '#cb-bubble {',
     '  position: fixed;',
-    '  bottom: 24px;',
+    '  bottom: 94px;',
     '  right: 24px;',
     '  width: 56px;',
     '  height: 56px;',
@@ -64,7 +64,7 @@
     // Window
     '#cb-window {',
     '  position: fixed;',
-    '  bottom: 90px;',
+    '  bottom: 160px;',
     '  right: 24px;',
     '  width: 360px;',
     '  max-height: 560px;',
@@ -184,6 +184,7 @@
     '  border-radius: 16px 4px 16px 16px;',
     '  padding: 10px 13px;',
     '}',
+    '.cb-msg-bot a { color: #c2185b; text-decoration: underline; }',
 
     // Typing indicator
     '#cb-typing {',
@@ -284,7 +285,7 @@
     '    border-right: none;',
     '    border-bottom: none;',
     '  }',
-    '  #cb-bubble { bottom: 16px; right: 16px; }',
+    '  #cb-bubble { bottom: 86px; right: 16px; }',
     '}',
   ].join('\n');
 
@@ -349,10 +350,21 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  function parseMarkdownLinks(text) {
+    var escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+    return escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, function (_, linkText, url) {
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + linkText + '</a>';
+    });
+  }
+
   function addMessage(text, role) {
     var el = document.createElement('div');
     el.className = 'cb-msg cb-msg-' + role;
-    el.textContent = text;
+    el.innerHTML = parseMarkdownLinks(text);
     // Insert before typing indicator so typing dot stays at bottom
     messagesEl.insertBefore(el, typingEl);
     scrollToBottom();
@@ -386,7 +398,8 @@
       var btn = document.createElement('button');
       btn.className = 'cb-qr';
       btn.textContent = label;
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         removeQuickReplies();
         sendMessage(label);
       });
