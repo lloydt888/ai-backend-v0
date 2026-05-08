@@ -341,9 +341,10 @@
   var unreadDot    = document.getElementById('cb-unread');
 
   // ── State ─────────────────────────────────────────────────────────────────
-  var isOpen         = false;
-  var isWaiting      = false;
-  var quickUsed      = false;
+  var isOpen              = false;
+  var isWaiting           = false;
+  var quickUsed           = false;
+  var conversationHistory = [];
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function scrollToBottom() {
@@ -356,8 +357,15 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
-    return escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, function (_, linkText, url) {
+    // Pass 1 — markdown links: [text](url)
+    var result = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, function (_, linkText, url) {
       return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + linkText + '</a>';
+    });
+    // Pass 2 — bare https:// URLs not already inside an <a href="...">
+    return result.replace(/(?<!href=")https?:\/\/[^\s<>"]+/g, function (url) {
+      var clean = url.replace(/[.,;:!?]+$/, '');
+      var trail = url.slice(clean.length);
+      return '<a href="' + clean + '" target="_blank" rel="noopener noreferrer">' + clean + '</a>' + trail;
     });
   }
 
@@ -413,6 +421,7 @@
     if (!text || isWaiting) return;
 
     addMessage(text, 'user');
+    conversationHistory.push({ role: 'user', content: text });
     inputEl.value = '';
     setWaiting(true);
     showTyping();
@@ -420,7 +429,7 @@
     fetch(API_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ message: text, bot: BOT_ID }),
+      body:    JSON.stringify({ message: text, bot: BOT_ID, history: conversationHistory }),
     })
       .then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -430,6 +439,7 @@
         hideTyping();
         var reply = (data && (data.reply || data.message || data.response)) || 'Sorry, I didn\'t catch that. Try again?';
         addMessage(reply, 'bot');
+        conversationHistory.push({ role: 'assistant', content: reply });
       })
       .catch(function () {
         hideTyping();
@@ -489,7 +499,7 @@
 
   // Close on overlay click (outside window)
   document.addEventListener('click', function (e) {
-    if (isOpen && !win.contains(e.target) && e.target !== bubble) {
+    if (isOpen && !win.contains(e.target) && !bubble.contains(e.target)) {
       closeChat();
     }
   });

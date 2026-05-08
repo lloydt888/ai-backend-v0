@@ -231,12 +231,14 @@ app.post('/chat', async (req, res) => {
     const systemPrompt = loadPrompt(bot);
     const isDiablo = isDiabloBot(bot);
 
-    // If not Diablo, keep original simple behaviour
+    // If not Diablo, use history if provided
     if (!isDiablo) {
+      const history = Array.isArray(req.body.history) ? req.body.history : [];
       const completion = await client.chat.completions.create({
         model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
+          ...history,
           { role: 'user', content: message }
         ]
       });
