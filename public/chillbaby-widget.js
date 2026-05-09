@@ -10,6 +10,7 @@
     'Gift box ideas',
     'Is it safe for kids?'
   ];
+  var STORAGE_KEY = 'cb_history';
 
   // ── Styles ────────────────────────────────────────────────────────────────
   var css = [
@@ -148,6 +149,20 @@
     '  transition: background 0.15s;',
     '}',
     '#cb-close:hover { background: rgba(255,255,255,0.35); }',
+
+    // New chat link
+    '#cb-new-chat {',
+    '  background: none;',
+    '  border: none;',
+    '  color: rgba(255,255,255,0.75);',
+    '  font-size: 0.70rem;',
+    '  cursor: pointer;',
+    '  padding: 2px 0 0;',
+    '  font-family: var(--cb-font);',
+    '  text-decoration: underline;',
+    '  line-height: 1;',
+    '}',
+    '#cb-new-chat:hover { color: #fff; }',
 
     // Messages
     '#cb-messages {',
@@ -317,6 +332,7 @@
       '<div id="cb-header-info">' +
         '<div id="cb-header-name">Chill Baby Assistant</div>' +
         '<div id="cb-header-status">Online</div>' +
+        '<button id="cb-new-chat">Start new chat</button>' +
       '</div>' +
       '<button id="cb-close" aria-label="Close chat">&#x2715;</button>' +
     '</div>' +
@@ -345,6 +361,21 @@
   var isWaiting           = false;
   var quickUsed           = false;
   var conversationHistory = [];
+
+  // ── localStorage persistence ──────────────────────────────────────────────
+  function saveHistory() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversationHistory)); } catch (e) {}
+  }
+
+  function clearHistory() {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    conversationHistory = [];
+    quickUsed = false;
+    while (messagesEl.firstChild !== typingEl) {
+      messagesEl.removeChild(messagesEl.firstChild);
+    }
+    showWelcome();
+  }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function scrollToBottom() {
@@ -422,6 +453,7 @@
 
     addMessage(text, 'user');
     conversationHistory.push({ role: 'user', content: text });
+    saveHistory();
     inputEl.value = '';
     setWaiting(true);
     showTyping();
@@ -440,6 +472,7 @@
         var reply = (data && (data.reply || data.message || data.response)) || 'Sorry, I didn\'t catch that. Try again?';
         addMessage(reply, 'bot');
         conversationHistory.push({ role: 'assistant', content: reply });
+        saveHistory();
       })
       .catch(function () {
         hideTyping();
@@ -504,7 +537,25 @@
     }
   });
 
+  document.getElementById('cb-new-chat').addEventListener('click', function (e) {
+    e.stopPropagation();
+    clearHistory();
+  });
+
   // ── Init ──────────────────────────────────────────────────────────────────
-  showWelcome();
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) {}
+  if (saved && Array.isArray(saved) && saved.length > 0) {
+    conversationHistory = saved;
+    quickUsed = true;
+    saved.forEach(function (msg) {
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        addMessage(msg.content, msg.role === 'assistant' ? 'bot' : 'user');
+      }
+    });
+    if (!isOpen) unreadDot.style.display = 'block';
+  } else {
+    showWelcome();
+  }
 
 })();

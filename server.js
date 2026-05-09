@@ -212,6 +212,35 @@ function emergencyReply() {
 }
 
 // --------------------
+// Chill Baby URL sanitizer
+// --------------------
+const CHILLBABY_URL_WHITELIST = new Set([
+  'https://chillbabynaturals.com.au/collections/all',
+  'https://chillbabynaturals.com.au/collections/nail-polish-gift-boxes',
+  'https://chillbabynaturals.com.au/products/non-toxic-nail-polish-10-ml',
+  'https://chillbabynaturals.com.au/products/summer-time-rainbow-nail-polish-gift-box',
+  'https://chillbabynaturals.com.au/products/mermaid-magic-nail-polish-gift-box',
+  'https://chillbabynaturals.com.au/products/summer-sunset-nail-polish-gift-box',
+  'https://chillbabynaturals.com.au/products/non-toxic-nail-polish-glorious-sunset-gift-box-bundle',
+  'https://chillbabynaturals.com.au/products/non-toxic-nail-polish-mermaid-magic-gift-box-bundle',
+  'https://chillbabynaturals.com.au/products/non-toxic-nail-polish-summer-time-rainbow-gift-box-bundle',
+  'https://chillbabynaturals.com.au/products/non-toxic-nail-polish-remover-serum',
+  'https://chillbabynaturals.com.au/products/chill-baby-naturals-gift-card',
+]);
+
+const CHILLBABY_FALLBACK_URL = 'https://chillbabynaturals.com.au/collections/all';
+
+function sanitizeChillbabyUrls(text) {
+  return text.replace(/https?:\/\/chillbabynaturals\.com\.au[^\s)]*/g, (url) => {
+    // Strip trailing punctuation that is not part of the URL
+    const clean = url.replace(/[.,;:!?'"]+$/, '');
+    const trail = url.slice(clean.length);
+    const safe = CHILLBABY_URL_WHITELIST.has(clean) ? clean : CHILLBABY_FALLBACK_URL;
+    return safe + trail;
+  });
+}
+
+// --------------------
 // Health check
 // --------------------
 app.get('/', (req, res) => {
@@ -235,7 +264,7 @@ app.post('/chat', async (req, res) => {
     if (!isDiablo) {
       const history = Array.isArray(req.body.history) ? req.body.history : [];
       const completion = await client.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           ...history,
@@ -243,7 +272,9 @@ app.post('/chat', async (req, res) => {
         ]
       });
 
-      return res.json({ reply: completion.choices?.[0]?.message?.content || '' });
+      let reply = completion.choices?.[0]?.message?.content || '';
+      if (bot === 'chillbaby') reply = sanitizeChillbabyUrls(reply);
+      return res.json({ reply });
     }
 
     // Diablo rails
